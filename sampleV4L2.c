@@ -1,5 +1,3 @@
-
-
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,9 +27,6 @@ int main()
 
     uint8_t *buff;
     buff = (uint8_t *)malloc(320*240*sizeof(uint8_t));
-    // uint8_t buff[320*240];
-    buff[0] = (uint8_t)2;
-    // printf("main");
 
     printf("buff");
 
