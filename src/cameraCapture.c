@@ -25,6 +25,7 @@ void startCapture(int width, int height, int pix_format)
     fd = open("/dev/video0", O_RDWR);
     if (fd < 0) {
         printf("fd = %d, errno=%d: %s\n", fd, errno, strerror(errno));
+        printf("Please enter command: $sudo modprobe bcm2835-v4l2 \n");
         return;
     }
 

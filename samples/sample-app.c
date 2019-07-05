@@ -14,8 +14,12 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <linux/videodev2.h>
+#include <linux/fb.h>
+#include <linux/omapfb.h>
 
 #define v4l2BufferNum 2
+#define CAMERA_WIDTH 32*37 // 1184
+#define CAMERA_HEIGHT 32*20 // 642
 
 /* camera control */
 int fd;
@@ -28,42 +32,128 @@ void stopCapture();
 int saveFileBinary(const char *filename, uint8_t *data, int size);
 
 /* frame buffer control */
-void drawColor(int width, int height, uint32_t color);
+void drawFrameBufferBGRA32(uint8_t* buffer, uint32_t size, int width, int height);
 void getFrameBufferSizeIoctl(int* width, int* height, int* colorWidth);
 
 
 int main()
 {
-    printf("main");
-
     startCapture();
 
-    // copyBuffer(buff, &size);
+    uint8_t *buff;
+    uint32_t size;
+    buff = (uint8_t *)malloc( 4* CAMERA_WIDTH * CAMERA_HEIGHT *sizeof(uint8_t)); // 14241bytes // 14363 // 13510
 
+    copyBuffer(buff, &size);
+    copyBuffer(buff, &size);
+    copyBuffer(buff, &size);
+
+    int width;
+    int height;
+    int colorWidth;
+    getFrameBufferSizeIoctl(&width, &height, &colorWidth);
+
+    printf("Camera Resolusion:      %dx%d = %d\n", CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_WIDTH*CAMERA_HEIGHT);
+    printf("Camera Format:          %d [byte]\n", CAMERA_WIDTH * CAMERA_HEIGHT * 4);
+    printf("Camera CopyBuffer Size: %d-byte(%d-px) \n", size, size/4);
+    printf("FrameBuffer:            %dx%d (%d)\n", width, height, colorWidth);
+
+    drawFrameBufferBGRA32(buff, size, width, height);
+    
     stopCapture();
+
+    free(buff);
 
     return 0;
 }
 
-
-
-/*
-   drawColor2()
-   ※ 32bit color = AARRGGBB
-   ※ test: 600枚/15s -> 40fps
-   mmapを使ってframeBuffer空間へのメモリを保持.
-   msyncの実行により値を反映している.
- */
-void drawColor(int width, int height, uint32_t color)
+#include <stdint.h>
+// unit8 = 1byte = 0xFF
+uint8_t reverseByte(uint8_t value)
 {
+    uint8_t lil = (value | 0x0F);
+    uint8_t big = (value | 0xF0);
+
+    uint8_t concat = (lil << 1) | (big >> 1);
+
+    return concat;
+}
+
+uint32_t reverse(uint32_t value)
+{
+    union {
+        uint32_t value;
+        uint8_t u[4];
+    } from, to;
+    from.value = value;
+    to.u[0] = from.u[3];
+    to.u[1] = from.u[2];
+    to.u[2] = from.u[1];
+    to.u[3] = from.u[0];
+
+    // to.u[0] = reverseByte(from.u[3]);
+    // to.u[1] = reverseByte(from.u[2]);
+    // to.u[2] = reverseByte(from.u[1]);
+    // to.u[3] = reverseByte(from.u[0]);
+    return to.value;
+}
+
+
+
+// FrameBufferはARGB形式
+// CameraはBGRA形式
+void drawFrameBufferBGRA32(uint8_t* buffer, uint32_t size, int width, int height) {
     int fd;
     fd = open("/dev/fb0", O_RDWR);
     uint32_t *frameBufferAddres = (uint32_t *)mmap(NULL, width * height * 4, PROT_WRITE, MAP_SHARED, fd, 0);
-    for(int y = 0; y < height; y++) {
-        for(int x = 0; x < width; x++) {
-            frameBufferAddres[x + y * width] = color; 
-        }
-    }
+
+    // bufferをキャストして、そのまま、反転(AGBR)させてコピーしてみる
+    // uint32_t * buffer32 = (uint32_t *)buffer;
+    // for( int i=0; i<size; i++) {
+    //     frameBufferAddres[i] = reverse(buffer32[i]);
+    // }
+
+    // for (int y=0; y<height; y++) {
+    //     for (int x=0; x<width; x++) {
+
+    //         int index = x + y *width;
+
+    //         frameBufferAddres[index] = 0x00FF0000;
+
+    //         // camera image
+    //         uint8_t B = buffer[index/4+0];
+    //         uint8_t G = buffer[index/4+1];
+    //         uint8_t R = buffer[index/4+2];
+    //         uint8_t A = buffer[index/4+3];
+
+    //         // FrameBuffer: AARRBBGG
+    //         frameBufferAddres[index] = 0xFF000000;
+    //         frameBufferAddres[index] |= (uint32_t)(B) <<  0; // B
+    //         frameBufferAddres[index] |= (uint32_t)(G) <<  8; // G
+    //         frameBufferAddres[index] |= (uint32_t)(R) <<  16; // R
+
+    //         // frameBufferAddres[x + y*width] = 0x00FF0000;
+    //         // frameBufferAddres[x + y*width] = (uint32_t)(0x00) <<  0; // B
+    //         // frameBufferAddres[x + y*width] = (uint32_t)(0x00) <<  0; // B
+    //         // frameBufferAddres[x + y*width] = (uint32_t)(0x00) <<  8; // G
+    //         // frameBufferAddres[x + y*width] = (uint32_t)(0x00) << 16; // R
+    //         // frameBufferAddres[x + y*width] = (uint32_t)(0x00) << 24; // A
+    //     }
+    // }
+
+    // for (int i=0; i<size; i=i+4){
+    //     int frame_index = i/4;
+    //         frameBufferAddres[frame_index] = (uint32_t)(0xFF); // init
+    //         frameBufferAddres[frame_index] |= (uint32_t)(buffer[i+3]) << 24; // A
+    //         frameBufferAddres[frame_index] |= (uint32_t)(buffer[i+2]) << 16; // R
+    //         frameBufferAddres[frame_index] |= (uint32_t)(buffer[i+1]) <<  8; // G
+    //         frameBufferAddres[frame_index] |= (uint32_t)(buffer[i+0]) <<  0; // B
+    // }
+
+
+    // フレームバッファにバッファの内容をそのままコピーしてみる.
+    // memcpy(frameBufferAddres, buffer, size);
+
     // 実際に値を書き込む
     msync(frameBufferAddres, width * height * 4, 0);
 
@@ -71,7 +161,6 @@ void drawColor(int width, int height, uint32_t color)
     munmap(frameBufferAddres, width * height * 4);
     close(fd);
 }
-
 
 void getFrameBufferSizeIoctl(int* width, int* height, int* colorWidth)
 {
@@ -84,7 +173,6 @@ void getFrameBufferSizeIoctl(int* width, int* height, int* colorWidth)
     *height     = var.yres_virtual;
     close(fd);
 }
-
 /*
  Camera Control
 
@@ -92,21 +180,16 @@ void getFrameBufferSizeIoctl(int* width, int* height, int* colorWidth)
 void startCapture(int width, int height)
 {
 
-    printf("start");
-
-
     // デバイスファイルをオープン
     fd = open("/dev/video0", O_RDWR);
-
-    printf("open");
 
     // フォーマットの指定: 320x240のJPEG形式でキャプチャしてください
     struct v4l2_format fmt;
     memset(&fmt, 0, sizeof(fmt));
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    fmt.fmt.pix.width   = width; //320;
-    fmt.fmt.pix.height  = 240;
-    fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_ARGB32; //V4L2_PIX_FMT_JPEG;
+    fmt.fmt.pix.width   = CAMERA_WIDTH; //320;
+    fmt.fmt.pix.height  = CAMERA_HEIGHT;
+    fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_ABGR32; //V4L2_PIX_FMT_JPEG;
     ioctl(fd, VIDIOC_S_FMT, &fmt);
 
     // 2. バッファリクエスト: バッファを2面メモリ空間に準備してください
@@ -132,6 +215,7 @@ void startCapture(int width, int height)
         // buf -> v4l2Buffer[i]
         v4l2Buffer[i] = mmap(NULL, buf.length, PROT_READ, MAP_SHARED, fd, buf.m.offset);
         v4l2BufferSize[i] = buf.length;
+        printf("-- v4l2BufferSize[%d]=%d \n", i, buf.length);
     }
 
     // 4. バッファのエンキュー
@@ -147,10 +231,6 @@ void startCapture(int width, int height)
     enum v4l2_buf_type type;
     type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     ioctl(fd, VIDIOC_STREAMON, &type);
-
-
-    printf("started");
-
 
 }
 
