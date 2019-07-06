@@ -35,7 +35,7 @@ void startCapture(int width, int height, int pix_format)
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     fmt.fmt.pix.width   = width;
     fmt.fmt.pix.height  = height;
-    fmt.fmt.pix.pixelformat = pix_format; //V4L2_PIX_FMT_RGB24; //V4L2_PIX_FMT_JPEG;
+    fmt.fmt.pix.pixelformat = pix_format;
     ioctl(fd, VIDIOC_S_FMT, &fmt);
 
     // 2. バッファリクエスト: バッファを2面メモリ空間に準備してください

@@ -14,4 +14,4 @@
 void getFrameBufferSizeIoctl(int* width, int* height, int* colorWidth);
 
 void drawFrameBuffer(char* device_path, uint8_t* buff, int size);
-void drawFrameBuffer32(char* device_path, uint32_t* buff, int size) ;
+void drawColor(int width, int height, uint32_t color) ;
