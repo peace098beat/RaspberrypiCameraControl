@@ -143,6 +143,19 @@ FrameBuffer:            1184x624 (32)
 (想定) 3,031,040[byte]: Camera の解像度(1184x640)とフォーマット(V4L2_PIX_FMT_XBGR32:4byte)から、バッファのサイズは3031040[byte]となりそう
 (実際) 1,136,640[byte] ※ 2.6倍程度異なる
 
+## はまりどころ
+
+ - (注意) Raspberry PI はリトルエンディアン
+
+ - Camera GBRA32
+ - Camera (mem) ARBG32
+ - Copied Buffer (mem) ARBG32
+ - FrameBuffer ARBG32
+ - FrameBuffer (mem) GBRA32
+
+フォーマットとメモリ格納時の並びに注意.
+openしてuint8_t*で調べているときには、リトルエンディアンで並んでいる。
+バッファをコピー(メモリコピー)をした場合は、リトルエンディアンの並びでコピーされる。
 
 
 ## Author
