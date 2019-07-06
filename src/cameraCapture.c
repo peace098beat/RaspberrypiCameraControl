@@ -133,6 +133,7 @@ int saveFileBinary(const char* filename, uint8_t* data, int size) {
     FILE *fp;
     fp = fopen(filename, "wb");
     if (fp == NULL) {
+        printf("fopen error %s\n", strerror(errno ));
         return -1;
     }
     fwrite(data, sizeof(uint8_t), size, fp);
